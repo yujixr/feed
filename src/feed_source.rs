@@ -189,6 +189,7 @@ fn is_html_content_type(content_type: &str) -> bool {
 mod tests {
     use super::*;
 
+    // is_html_content_type returns true only for "text/html" (case-insensitive, ignoring params).
     #[test]
     fn test_is_html_content_type() {
         assert!(is_html_content_type("text/html"));

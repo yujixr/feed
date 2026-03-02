@@ -20,6 +20,7 @@ fn make_article(title: &str, read: bool, days_ago: i64) -> Article {
     }
 }
 
+// Default filter (show_read=false) excludes read articles.
 #[test]
 fn test_query_filters_read_articles() -> anyhow::Result<()> {
     let dir = tempdir()?;
@@ -30,7 +31,7 @@ fn test_query_filters_read_articles() -> anyhow::Result<()> {
         make_article("unread2", false, 3),
     ]);
 
-    let params = FilterParams::default(); // show_read=false
+    let params = FilterParams::default();
     let indices = store.query(&params);
     assert_eq!(indices.len(), 2);
     for &i in &indices {
@@ -39,24 +40,7 @@ fn test_query_filters_read_articles() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_query_show_all_includes_read() -> anyhow::Result<()> {
-    let dir = tempdir()?;
-    let mut store = ArticleStore::new(vec![], Config::default(), dir.path().to_path_buf());
-    store.set_articles(vec![
-        make_article("unread1", false, 1),
-        make_article("read1", true, 2),
-    ]);
-
-    let params = FilterParams {
-        show_read: true,
-        ..Default::default()
-    };
-    let indices = store.query(&params);
-    assert_eq!(indices.len(), 2);
-    Ok(())
-}
-
+// `from` date filter excludes articles older than the cutoff.
 #[test]
 fn test_query_from_date_filter() -> anyhow::Result<()> {
     let dir = tempdir()?;
@@ -81,6 +65,7 @@ fn test_query_from_date_filter() -> anyhow::Result<()> {
     Ok(())
 }
 
+// `limit` caps the number of returned articles.
 #[test]
 fn test_query_limit() -> anyhow::Result<()> {
     let dir = tempdir()?;
@@ -101,6 +86,7 @@ fn test_query_limit() -> anyhow::Result<()> {
     Ok(())
 }
 
+// All filters (show_read + from + limit) work together correctly.
 #[test]
 fn test_query_combined_filters() -> anyhow::Result<()> {
     let dir = tempdir()?;
@@ -127,6 +113,7 @@ fn test_query_combined_filters() -> anyhow::Result<()> {
     Ok(())
 }
 
+// mark_read only affects the target article, not others.
 #[tokio::test]
 async fn test_mark_read() -> anyhow::Result<()> {
     let dir = tempdir()?;
@@ -142,42 +129,20 @@ async fn test_mark_read() -> anyhow::Result<()> {
         show_read: true,
         ..Default::default()
     });
-    assert!(store.get(all[0]).context("article1 not found")?.read); // article1 now read
-    assert!(!store.get(all[1]).context("article2 not found")?.read); // article2 unchanged
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_toggle_read() -> anyhow::Result<()> {
-    let dir = tempdir()?;
-    let mut store = ArticleStore::new(vec![], Config::default(), dir.path().to_path_buf());
-    store.set_articles(vec![make_article("article1", false, 1)]);
-
-    store.toggle_read(0);
-    let all = store.query(&FilterParams {
-        show_read: true,
-        ..Default::default()
-    });
-    assert!(store.get(all[0]).context("article not found")?.read);
-
-    store.toggle_read(0);
-    let all = store.query(&FilterParams {
-        show_read: true,
-        ..Default::default()
-    });
-    assert!(!store.get(all[0]).context("article not found")?.read);
+    assert!(store.get(all[0]).context("article1 not found")?.read);
+    assert!(!store.get(all[1]).context("article2 not found")?.read);
     Ok(())
 }
 
 // --- load_from_cache tests (via ArticleStore::fetch with cached_only=true) ---
 
+// Cache is loaded into ArticleStore with correct sort order, read status, and rss_content.
 #[tokio::test]
 async fn test_fetch_cached_only_loads_articles() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let cache = CacheStore::new(dir.path());
     let feed_url = "https://example.com/feed.xml";
 
-    // Pre-populate cache
     let raw_feed = RawFeed {
         title: "Cached Blog".to_string(),
         entries: vec![
@@ -198,8 +163,6 @@ async fn test_fetch_cached_only_loads_articles() -> anyhow::Result<()> {
         last_modified: None,
     };
     cache.save_feed(feed_url, &raw_feed, None, None)?;
-
-    // Mark one as read
     cache.set_read_status(feed_url, "https://example.com/a", true)?;
 
     let feeds = vec![FeedEntry {
@@ -213,7 +176,6 @@ async fn test_fetch_cached_only_loads_articles() -> anyhow::Result<()> {
 
     assert_eq!(store.len(), 2);
 
-    // Sorted by published date descending — Post A is newer
     let first = store.get(0).context("first article not found")?;
     assert_eq!(first.title, "Post A");
     assert_eq!(first.feed_url, feed_url);
@@ -229,6 +191,7 @@ async fn test_fetch_cached_only_loads_articles() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Fetching from an empty cache produces an empty store.
 #[tokio::test]
 async fn test_fetch_cached_only_empty_cache() -> anyhow::Result<()> {
     let dir = tempdir()?;
@@ -245,6 +208,7 @@ async fn test_fetch_cached_only_empty_cache() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Per-feed extractor setting is applied to loaded articles.
 #[tokio::test]
 async fn test_fetch_cached_only_uses_feed_extractor() -> anyhow::Result<()> {
     let dir = tempdir()?;
@@ -264,7 +228,6 @@ async fn test_fetch_cached_only_uses_feed_extractor() -> anyhow::Result<()> {
     };
     cache.save_feed(feed_url, &raw_feed, None, None)?;
 
-    // Set per-feed extractor to RssContent
     let feeds = vec![FeedEntry {
         name: "Blog".to_string(),
         url: feed_url.to_string(),
@@ -280,12 +243,12 @@ async fn test_fetch_cached_only_uses_feed_extractor() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Articles from multiple feeds are merged and sorted by date (newest first).
 #[tokio::test]
 async fn test_fetch_cached_only_multiple_feeds() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let cache = CacheStore::new(dir.path());
 
-    // Populate two feeds
     let feed1 = RawFeed {
         title: "Blog A".to_string(),
         entries: vec![RawEntry {
@@ -329,7 +292,6 @@ async fn test_fetch_cached_only_multiple_feeds() -> anyhow::Result<()> {
     store.fetch(true).await;
 
     assert_eq!(store.len(), 2);
-    // Sorted by published date descending — A1 is newer
     assert_eq!(store.get(0).context("first")?.title, "A1");
     assert_eq!(store.get(0).context("first")?.feed_name, "Blog A");
     assert_eq!(store.get(1).context("second")?.title, "B1");

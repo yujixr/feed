@@ -238,10 +238,7 @@ pub(super) fn handle_mouse_event(
     }
 }
 
-pub(super) fn poll_bg_messages(
-    app: &mut App,
-    rx: &mut mpsc::UnboundedReceiver<BgMessage>,
-) {
+pub(super) fn poll_bg_messages(app: &mut App, rx: &mut mpsc::UnboundedReceiver<BgMessage>) {
     while let Ok(msg) = rx.try_recv() {
         match msg {
             BgMessage::FetchComplete(articles) => {
@@ -269,4 +266,3 @@ pub(super) fn poll_bg_messages(
         }
     }
 }
-

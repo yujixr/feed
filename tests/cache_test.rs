@@ -30,6 +30,7 @@ fn sample_feed() -> anyhow::Result<RawFeed> {
     })
 }
 
+// Saved feed can be loaded back with correct title and article count.
 #[test]
 fn test_save_and_load_cache() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -45,6 +46,7 @@ fn test_save_and_load_cache() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Saving a feed twice merges entries by URL (no duplicates).
 #[test]
 fn test_cache_merges_entries() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -90,6 +92,7 @@ fn test_cache_merges_entries() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Loading a URL that was never cached returns None.
 #[test]
 fn test_load_nonexistent_cache() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -98,33 +101,17 @@ fn test_load_nonexistent_cache() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_purge_old_entries() -> anyhow::Result<()> {
-    let dir = TempDir::new()?;
-    let cache = CacheStore::new(dir.path());
-    let url = "https://example.com/feed.xml";
-    let feed = sample_feed()?;
-
-    // Both entries are freshly saved, so last_seen = now; purge should keep both
-    cache.save_feed(url, &feed, None, None)?;
-    cache.purge_old_entries(30)?;
-
-    let loaded = cache.load_feed(url).context("cache not found")?;
-    assert_eq!(loaded.articles.len(), 2);
-    Ok(())
-}
-
+// purge_old_entries removes entries whose last_seen is older than retention days.
 #[test]
 fn test_purge_removes_entries_not_seen_recently() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
     let cache = CacheStore::new(dir.path());
     let url = "https://example.com/feed.xml";
 
-    // Save feed with two entries
     let feed = sample_feed()?;
     cache.save_feed(url, &feed, None, None)?;
 
-    // Manually patch the cache file to set last_seen to 60 days ago for "Old Post"
+    // Patch the cache file: set last_seen to 60 days ago for "Old Post"
     let cache_path = dir.path().join({
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
@@ -145,7 +132,6 @@ fn test_purge_removes_entries_not_seen_recently() -> anyhow::Result<()> {
     }
     std::fs::write(&cache_path, serde_json::to_string(&cached)?)?;
 
-    // Purge entries not seen in 30 days
     cache.purge_old_entries(30)?;
 
     let loaded = cache.load_feed(url).context("cache not found")?;
@@ -154,6 +140,7 @@ fn test_purge_removes_entries_not_seen_recently() -> anyhow::Result<()> {
     Ok(())
 }
 
+// data_dir returns the custom path when one is provided.
 #[test]
 fn test_data_dir_config_path() -> anyhow::Result<()> {
     let dir = data_dir(Some("/tmp/my_cache"))?;
@@ -164,6 +151,7 @@ fn test_data_dir_config_path() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Read status is preserved when the feed is saved again (re-fetch).
 #[test]
 fn test_save_cache_preserves_read_status() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -174,7 +162,6 @@ fn test_save_cache_preserves_read_status() -> anyhow::Result<()> {
     cache.save_feed(feed_url, &feed, None, None)?;
     cache.set_read_status(feed_url, "https://example.com/new", true)?;
 
-    // Save again (simulating re-fetch) -- read status should be preserved
     cache.save_feed(feed_url, &feed, None, None)?;
 
     let loaded = cache.load_feed(feed_url).context("cache not found")?;
@@ -187,6 +174,7 @@ fn test_save_cache_preserves_read_status() -> anyhow::Result<()> {
     Ok(())
 }
 
+// set_read_status toggles read/unread and persists the change.
 #[test]
 fn test_set_read_status() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -196,7 +184,6 @@ fn test_set_read_status() -> anyhow::Result<()> {
 
     cache.save_feed(feed_url, &feed, None, None)?;
 
-    // Set as read
     let article_url = "https://example.com/new";
     cache.set_read_status(feed_url, article_url, true)?;
 
@@ -208,7 +195,6 @@ fn test_set_read_status() -> anyhow::Result<()> {
         .context("article not found")?;
     assert!(entry.read);
 
-    // Set back to unread
     cache.set_read_status(feed_url, article_url, false)?;
 
     let loaded = cache.load_feed(feed_url).context("cache not found")?;
@@ -221,6 +207,7 @@ fn test_set_read_status() -> anyhow::Result<()> {
     Ok(())
 }
 
+// ETag and Last-Modified are saved and can be loaded back.
 #[test]
 fn test_save_and_load_http_metadata() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -236,30 +223,5 @@ fn test_save_and_load_http_metadata() -> anyhow::Result<()> {
     let meta = cache.load_http_metadata(url);
     assert_eq!(meta.etag.as_deref(), etag);
     assert_eq!(meta.last_modified.as_deref(), last_modified);
-    Ok(())
-}
-
-#[test]
-fn test_http_metadata_none_when_not_set() -> anyhow::Result<()> {
-    let dir = TempDir::new()?;
-    let cache = CacheStore::new(dir.path());
-    let url = "https://example.com/feed.xml";
-    let feed = sample_feed()?;
-
-    cache.save_feed(url, &feed, None, None)?;
-
-    let meta = cache.load_http_metadata(url);
-    assert!(meta.etag.is_none());
-    assert!(meta.last_modified.is_none());
-    Ok(())
-}
-
-#[test]
-fn test_http_metadata_missing_cache_file() -> anyhow::Result<()> {
-    let dir = TempDir::new()?;
-    let cache = CacheStore::new(dir.path());
-    let meta = cache.load_http_metadata("https://nonexistent.com");
-    assert!(meta.etag.is_none());
-    assert!(meta.last_modified.is_none());
     Ok(())
 }

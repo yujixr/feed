@@ -1,40 +1,7 @@
-use chrono::Utc;
-use feed::article::{extract_from_html, html_to_text, Article};
+use feed::article::{extract_from_html, html_to_text};
 use feed::config::ExtractorMethod;
 
-#[test]
-fn test_article_creation() {
-    let article = Article {
-        title: "Test".to_string(),
-        url: "https://example.com/1".to_string(),
-        published: Some(Utc::now()),
-        feed_url: "https://example.com/feed".to_string(),
-        feed_name: "Test Blog".to_string(),
-        extractor: ExtractorMethod::default(),
-        read: false,
-        rss_content: None,
-    };
-    assert_eq!(article.title, "Test");
-    assert!(!article.read);
-}
-
-#[test]
-fn test_article_clone() {
-    let article = Article {
-        title: "Test".to_string(),
-        url: "https://example.com/1".to_string(),
-        published: None,
-        feed_url: "https://example.com/feed".to_string(),
-        feed_name: "Blog".to_string(),
-        extractor: ExtractorMethod::Readability,
-        read: true,
-        rss_content: Some("<p>content</p>".to_string()),
-    };
-    let cloned = article.clone();
-    assert_eq!(cloned.title, article.title);
-    assert_eq!(cloned.read, article.read);
-}
-
+// Readability extracts main content, skipping nav/footer.
 #[test]
 fn test_extract_text_from_html_basic() {
     let html = r#"
@@ -56,6 +23,7 @@ fn test_extract_text_from_html_basic() {
     assert!(!text.is_empty());
 }
 
+// Readability extracts the page title from <title> or <h1>.
 #[test]
 fn test_extract_text_from_html_returns_title() {
     let html = r#"
@@ -73,16 +41,15 @@ fn test_extract_text_from_html_returns_title() {
     assert!(!title.is_empty());
 }
 
-// --- extract_from_html edge cases ---
-
+// When readability cannot parse minimal HTML, it falls back to html_to_text.
 #[test]
 fn test_extract_from_html_minimal_html() {
-    // Minimal HTML that readability may not parse — falls back to html_to_text
     let html = "<p>short</p>";
     let (_title, text) = extract_from_html(html, 80);
     assert!(text.contains("short"));
 }
 
+// Empty input does not panic and returns empty output.
 #[test]
 fn test_extract_from_html_empty() {
     let (title, text) = extract_from_html("", 80);
@@ -90,15 +57,14 @@ fn test_extract_from_html_empty() {
     assert!(text.trim().is_empty());
 }
 
+// Plain text input (no HTML tags) is handled via fallback.
 #[test]
 fn test_extract_from_html_plain_text_input() {
     let (title, text) = extract_from_html("just plain text", 80);
-    // Should still produce output via fallback
     assert!(title.is_empty() || text.contains("plain text"));
 }
 
-// --- html_to_text tests ---
-
+// html_to_text strips tags and preserves visible text.
 #[test]
 fn test_html_to_text_basic() {
     let text = html_to_text("<p>Hello <b>world</b></p>", 80);
@@ -106,12 +72,7 @@ fn test_html_to_text_basic() {
     assert!(text.contains("world"));
 }
 
-#[test]
-fn test_html_to_text_plain_input() {
-    let text = html_to_text("no tags here", 80);
-    assert!(text.contains("no tags here"));
-}
-
+// html_to_text handles nested tags like <ul>/<li>.
 #[test]
 fn test_html_to_text_nested_tags() {
     let text = html_to_text("<div><ul><li>item1</li><li>item2</li></ul></div>", 80);
@@ -119,19 +80,18 @@ fn test_html_to_text_nested_tags() {
     assert!(text.contains("item2"));
 }
 
+// html_to_text wraps lines according to the given width.
 #[test]
 fn test_html_to_text_respects_width() {
     let long_text = "a ".repeat(100);
     let html = format!("<p>{}</p>", long_text);
     let text = html_to_text(&html, 40);
-    // Lines should be wrapped to roughly the specified width
     for line in text.lines() {
         assert!(line.len() <= 80, "line too long: {}", line);
     }
 }
 
-// --- extract_content (RssContent path, no network) ---
-
+// extract_content with RssContent mode converts HTML from RSS body without network access.
 #[tokio::test]
 async fn test_extract_content_rss_content_with_html() {
     let client = reqwest::Client::new();

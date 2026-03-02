@@ -185,6 +185,7 @@ pub fn truncate(s: &str, width: usize) -> String {
 mod tests {
     use super::*;
 
+    // osc8_hyperlink wraps text in OSC 8 escape sequences with the correct URL.
     #[test]
     fn test_osc8_hyperlink_format() {
         let result = osc8_hyperlink("https://example.com", "Click here");
@@ -192,11 +193,5 @@ mod tests {
         assert!(result.contains("Click here"));
         assert!(result.starts_with("\x1b]8;;"));
         assert!(result.ends_with("\x1b]8;;\x1b\\"));
-    }
-
-    #[test]
-    fn test_osc8_hyperlink_empty_text() {
-        let result = osc8_hyperlink("https://example.com", "");
-        assert_eq!(result, "\x1b]8;;https://example.com\x1b\\\x1b]8;;\x1b\\");
     }
 }

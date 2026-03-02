@@ -12,6 +12,7 @@ fn key(code: KeyCode) -> KeyEvent {
     }
 }
 
+// 'q' and Esc quit from the article list screen.
 #[test]
 fn test_article_list_quit() {
     assert_eq!(
@@ -24,6 +25,7 @@ fn test_article_list_quit() {
     );
 }
 
+// j/Down move down and k/Up move up in the article list.
 #[test]
 fn test_article_list_navigation() {
     assert_eq!(
@@ -44,6 +46,7 @@ fn test_article_list_navigation() {
     );
 }
 
+// Enter/Space open an article; o opens in browser; m toggles read; a toggles filter; r refreshes.
 #[test]
 fn test_article_list_actions() {
     assert_eq!(
@@ -72,6 +75,7 @@ fn test_article_list_actions() {
     );
 }
 
+// q/Esc go back to list; j/k scroll; h/l switch articles.
 #[test]
 fn test_article_view_navigation() {
     assert_eq!(
@@ -100,6 +104,7 @@ fn test_article_view_navigation() {
     );
 }
 
+// Space pages down; o opens in browser; m toggles read in the article view.
 #[test]
 fn test_article_view_actions() {
     assert_eq!(
@@ -116,6 +121,7 @@ fn test_article_view_actions() {
     );
 }
 
+// Unbound keys return Action::None on both screens.
 #[test]
 fn test_unknown_key_returns_none() {
     assert_eq!(

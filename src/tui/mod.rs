@@ -128,14 +128,7 @@ async fn event_loop(
             let size = terminal.size()?;
             let width = size.width as usize;
             let height = size.height as usize;
-            handlers::handle_mouse_event(
-                app,
-                mouse,
-                width,
-                height,
-                &mut last_click,
-                &tx,
-            );
+            handlers::handle_mouse_event(app, mouse, width, height, &mut last_click, &tx);
         }
     }
     Ok(())

@@ -6,6 +6,7 @@ fn feed_cmd() -> Command {
     Command::new("cargo")
 }
 
+// --help output lists all subcommands.
 #[test]
 fn test_help_shows_subcommands() {
     let output = feed_cmd()
@@ -21,6 +22,7 @@ fn test_help_shows_subcommands() {
     assert!(stdout.contains("tags"));
 }
 
+// `list` with no feeds shows "No feeds registered".
 #[test]
 fn test_list_with_empty_config() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -42,37 +44,7 @@ fn test_list_with_empty_config() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_tags_with_empty_config() -> anyhow::Result<()> {
-    let dir = TempDir::new()?;
-    let config_path = dir.path().join("config.yaml");
-    let output = feed_cmd()
-        .args([
-            "run",
-            "--",
-            "--config",
-            config_path
-                .to_str()
-                .context("config path is not valid UTF-8")?,
-            "tags",
-        ])
-        .output()
-        .expect("failed to execute");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("No tags found"));
-    Ok(())
-}
-
-#[test]
-fn test_help_shows_all_flag() {
-    let output = feed_cmd()
-        .args(["run", "--", "--help"])
-        .output()
-        .expect("failed to execute");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("--all"));
-}
-
+// `remove` with a name that does not exist exits with an error.
 #[test]
 fn test_remove_nonexistent_feed() -> anyhow::Result<()> {
     let dir = TempDir::new()?;

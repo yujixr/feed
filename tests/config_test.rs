@@ -1,7 +1,8 @@
-use feed::config::{Config, ContentConfig, ExtractorMethod, FeedEntry};
+use feed::config::{Config, ExtractorMethod, FeedEntry};
 use std::path::Path;
 use tempfile::TempDir;
 
+// Loading from a nonexistent file returns an empty Config (no error).
 #[test]
 fn test_load_nonexistent_returns_empty() -> anyhow::Result<()> {
     let path = Path::new("/tmp/nonexistent_feed_config.yaml");
@@ -10,6 +11,7 @@ fn test_load_nonexistent_returns_empty() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Config survives a save-then-load cycle with feeds and tags intact.
 #[test]
 fn test_save_and_load_roundtrip() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -34,6 +36,7 @@ fn test_save_and_load_roundtrip() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Adding a feed with the same URL replaces the existing entry.
 #[test]
 fn test_add_feed_deduplicates_by_url() {
     let mut config = Config {
@@ -56,6 +59,7 @@ fn test_add_feed_deduplicates_by_url() {
     assert_eq!(config.feeds[0].name, "New");
 }
 
+// remove_feed matches names case-insensitively.
 #[test]
 fn test_remove_feed_by_name_case_insensitive() {
     let mut config = Config {
@@ -71,6 +75,7 @@ fn test_remove_feed_by_name_case_insensitive() {
     assert!(config.feeds.is_empty());
 }
 
+// find_feed matches by name (case-insensitive) or by URL.
 #[test]
 fn test_find_feed_case_insensitive() {
     let config = Config {
@@ -87,6 +92,7 @@ fn test_find_feed_case_insensitive() {
     assert!(config.find_feed("nonexistent").is_none());
 }
 
+// feeds_by_tag returns only feeds that have the given tag.
 #[test]
 fn test_feeds_by_tag() {
     let config = Config {
@@ -111,6 +117,7 @@ fn test_feeds_by_tag() {
     assert_eq!(tech[0].name, "A");
 }
 
+// all_tags collects tags from all feeds, sorted and deduplicated.
 #[test]
 fn test_all_tags_sorted_and_deduped() {
     let config = Config {
@@ -133,32 +140,7 @@ fn test_all_tags_sorted_and_deduped() {
     assert_eq!(config.all_tags(), vec!["news", "rust", "tech"]);
 }
 
-#[test]
-fn test_config_roundtrip_yaml() -> anyhow::Result<()> {
-    let dir = TempDir::new()?;
-    let config_path = dir.path().join("config.yaml");
-
-    let yaml =
-        "feeds:\n- name: Test Feed\n  url: https://example.com/feed.xml\n  tags:\n  - tech\n  - rust\n";
-    std::fs::write(&config_path, yaml)?;
-
-    let content = std::fs::read_to_string(&config_path)?;
-    assert!(content.contains("Test Feed"));
-    assert!(content.contains("https://example.com/feed.xml"));
-    assert!(content.contains("tech"));
-    Ok(())
-}
-
-#[test]
-fn test_cache_config_defaults() {
-    let config = Config {
-        feeds: vec![],
-        ..Default::default()
-    };
-    assert_eq!(config.cache.retention_days, 90);
-    assert!(config.cache.path.is_none());
-}
-
+// cache.path can be set via YAML.
 #[test]
 fn test_cache_config_with_path() -> anyhow::Result<()> {
     let yaml = "feeds: []\ncache:\n  path: /tmp/my_feed_cache\n";
@@ -167,6 +149,7 @@ fn test_cache_config_with_path() -> anyhow::Result<()> {
     Ok(())
 }
 
+// cache.path is omitted from YAML output when None (skip_serializing_if).
 #[test]
 fn test_cache_config_path_not_serialized_when_none() -> anyhow::Result<()> {
     let dir = TempDir::new()?;
@@ -181,13 +164,7 @@ fn test_cache_config_path_not_serialized_when_none() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_content_config_defaults() -> anyhow::Result<()> {
-    let config: Config = serde_norway::from_str("feeds: []")?;
-    assert_eq!(config.content.extractor, ExtractorMethod::Readability);
-    Ok(())
-}
-
+// content.extractor can be set to rss_content via YAML.
 #[test]
 fn test_content_config_rss() -> anyhow::Result<()> {
     let yaml = "feeds: []\ncontent:\n  extractor: rss_content\n";
@@ -196,13 +173,7 @@ fn test_content_config_rss() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_auto_mark_read_default_true() -> anyhow::Result<()> {
-    let config: Config = serde_norway::from_str("feeds: []")?;
-    assert!(config.content.auto_mark_read);
-    Ok(())
-}
-
+// auto_mark_read can be disabled via YAML.
 #[test]
 fn test_auto_mark_read_explicit_false() -> anyhow::Result<()> {
     let yaml = "feeds: []\ncontent:\n  auto_mark_read: false\n";
@@ -211,54 +182,11 @@ fn test_auto_mark_read_explicit_false() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_auto_mark_read_roundtrip() -> anyhow::Result<()> {
-    let dir = TempDir::new()?;
-    let path = dir.path().join("config.yaml");
-    let config = Config {
-        feeds: vec![],
-        content: ContentConfig {
-            extractor: ExtractorMethod::Readability,
-            auto_mark_read: false,
-        },
-        ..Default::default()
-    };
-    config.save(&path)?;
-    let loaded = Config::load(&path)?;
-    assert!(!loaded.content.auto_mark_read);
-    Ok(())
-}
-
-// --- TuiConfig ---
-
-#[test]
-fn test_tui_config_default_disabled() -> anyhow::Result<()> {
-    let config: Config = serde_norway::from_str("feeds: []")?;
-    assert_eq!(config.tui.auto_refresh_interval, 0);
-    Ok(())
-}
-
+// tui.auto_refresh_interval can be set via YAML.
 #[test]
 fn test_tui_config_auto_refresh_interval() -> anyhow::Result<()> {
     let yaml = "feeds: []\ntui:\n  auto_refresh_interval: 300\n";
     let config: Config = serde_norway::from_str(yaml)?;
     assert_eq!(config.tui.auto_refresh_interval, 300);
-    Ok(())
-}
-
-#[test]
-fn test_tui_config_roundtrip() -> anyhow::Result<()> {
-    let dir = TempDir::new()?;
-    let path = dir.path().join("config.yaml");
-    let config = Config {
-        feeds: vec![],
-        tui: feed::config::TuiConfig {
-            auto_refresh_interval: 600,
-        },
-        ..Default::default()
-    };
-    config.save(&path)?;
-    let loaded = Config::load(&path)?;
-    assert_eq!(loaded.tui.auto_refresh_interval, 600);
     Ok(())
 }

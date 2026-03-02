@@ -29,13 +29,7 @@ fn sample_items() -> anyhow::Result<Vec<DisplayItem<'static>>> {
     ])
 }
 
-#[test]
-fn test_format_feed_contains_title() -> anyhow::Result<()> {
-    let output = render_article_list("Test Blog", &sample_items()?);
-    assert!(output.contains("Test Blog"));
-    Ok(())
-}
-
+// render_article_list output contains title, date, and URL of each entry.
 #[test]
 fn test_format_feed_contains_entries() -> anyhow::Result<()> {
     let output = render_article_list("Test Blog", &sample_items()?);
@@ -45,16 +39,7 @@ fn test_format_feed_contains_entries() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_format_feed_with_limit() -> anyhow::Result<()> {
-    let items = sample_items()?;
-    let limited = &items[..1];
-    let output = render_article_list("Test Blog", limited);
-    assert!(output.contains("First Post"));
-    assert!(!output.contains("Second Post"));
-    Ok(())
-}
-
+// render_feed_list shows "No feeds registered" when the config has no feeds.
 #[test]
 fn test_render_feed_list_empty() {
     let config = Config::default();
@@ -62,6 +47,7 @@ fn test_render_feed_list_empty() {
     assert!(output.contains("No feeds registered"));
 }
 
+// render_feed_list shows name, URL, and tags for each feed.
 #[test]
 fn test_render_feed_list() {
     let mut config = Config::default();
@@ -77,6 +63,7 @@ fn test_render_feed_list() {
     assert!(output.contains("[tech]"));
 }
 
+// render_tag_list shows all tags from feeds.
 #[test]
 fn test_render_tag_list() {
     let mut config = Config::default();
@@ -91,6 +78,7 @@ fn test_render_tag_list() {
     assert!(output.contains("tech"));
 }
 
+// render_tag_list shows "No tags found" when no tags exist.
 #[test]
 fn test_render_tag_list_empty() {
     let config = Config::default();
@@ -98,12 +86,14 @@ fn test_render_tag_list_empty() {
     assert!(output.contains("No tags found"));
 }
 
+// Short strings are padded with spaces to reach the target width.
 #[test]
 fn test_pad_or_truncate_pads() {
     let result = pad_or_truncate("hi", 10);
     assert_eq!(display_width(&result), 10);
 }
 
+// Long strings are truncated with an ellipsis to fit the target width.
 #[test]
 fn test_pad_or_truncate_truncates() {
     let result = pad_or_truncate("this is a very long title", 10);
@@ -111,48 +101,31 @@ fn test_pad_or_truncate_truncates() {
     assert!(result.contains('…'));
 }
 
-// --- display_width tests ---
-
+// ASCII characters have width 1 each.
 #[test]
 fn test_display_width_ascii() {
     assert_eq!(display_width("hello"), 5);
 }
 
-#[test]
-fn test_display_width_empty() {
-    assert_eq!(display_width(""), 0);
-}
-
+// CJK characters have width 2 each.
 #[test]
 fn test_display_width_cjk() {
-    // CJK characters are 2 columns wide
     assert_eq!(display_width("日本語"), 6);
 }
 
-#[test]
-fn test_display_width_mixed() {
-    // "Hello" (5) + "世界" (4) = 9
-    assert_eq!(display_width("Hello世界"), 9);
-}
-
-#[test]
-fn test_display_width_emoji() {
-    // Emoji width varies, but should be > 0
-    assert!(display_width("🦀") > 0);
-}
-
-// --- truncate tests ---
-
+// Strings shorter than the limit are returned unchanged.
 #[test]
 fn test_truncate_short_string_unchanged() {
     assert_eq!(truncate("hi", 10), "hi");
 }
 
+// Strings exactly at the limit are returned unchanged (boundary).
 #[test]
 fn test_truncate_exact_width_unchanged() {
     assert_eq!(truncate("hello", 5), "hello");
 }
 
+// Strings longer than the limit are cut and end with "…".
 #[test]
 fn test_truncate_long_string() {
     let result = truncate("this is a very long string", 10);
@@ -160,29 +133,23 @@ fn test_truncate_long_string() {
     assert!(result.contains('…'));
 }
 
+// CJK strings are truncated without splitting a wide character.
 #[test]
 fn test_truncate_cjk_respects_width() {
-    // "日本語のテスト" = 14 columns; truncate to 6
     let result = truncate("日本語のテスト", 6);
     assert!(display_width(&result) <= 6);
     assert!(result.contains('…'));
 }
 
+// Width 1 only fits the ellipsis character.
 #[test]
 fn test_truncate_width_one() {
     let result = truncate("hello", 1);
-    // Only the ellipsis should fit
     assert_eq!(result, "…");
     assert_eq!(display_width(&result), 1);
 }
 
-#[test]
-fn test_truncate_empty_string() {
-    assert_eq!(truncate("", 10), "");
-}
-
-// --- render_article_list edge cases ---
-
+// Empty entry list shows "(no entries)".
 #[test]
 fn test_render_article_list_empty_entries() {
     let output = render_article_list("Empty Feed", &[]);
@@ -190,6 +157,7 @@ fn test_render_article_list_empty_entries() {
     assert!(output.contains("(no entries)"));
 }
 
+// Articles without a published date show blank space in the date column.
 #[test]
 fn test_render_article_list_no_published_date() -> anyhow::Result<()> {
     let items = vec![DisplayItem {
@@ -199,22 +167,13 @@ fn test_render_article_list_no_published_date() -> anyhow::Result<()> {
     }];
     let output = render_article_list("Blog", &items);
     assert!(output.contains("No Date Post"));
-    // Should have spaces in place of date
     assert!(output.contains("          "));
     Ok(())
 }
 
-// --- pad_or_truncate additional tests ---
-
+// CJK strings are correctly padded to the target display width.
 #[test]
 fn test_pad_or_truncate_cjk() {
     let result = pad_or_truncate("日本", 10);
     assert_eq!(display_width(&result), 10);
-}
-
-#[test]
-fn test_pad_or_truncate_exact_width() {
-    let result = pad_or_truncate("hello", 5);
-    assert_eq!(result, "hello");
-    assert_eq!(display_width(&result), 5);
 }

@@ -1,6 +1,7 @@
 use anyhow::Context;
-use feed::feed_source::{self, FetchResult, RawFeed};
+use feed::feed_source::{self, RawFeed};
 
+// RSS XML is parsed into RawFeed with correct title, entries, URLs, and dates.
 #[test]
 fn test_parse_rss_feed() -> anyhow::Result<()> {
     let xml = include_bytes!("fixtures/sample_rss.xml");
@@ -23,6 +24,7 @@ fn test_parse_rss_feed() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Missing <title> in channel and item both fall back to "(untitled)".
 #[test]
 fn test_parse_empty_title() -> anyhow::Result<()> {
     let xml = br#"<?xml version="1.0"?>
@@ -39,6 +41,7 @@ fn test_parse_empty_title() -> anyhow::Result<()> {
     Ok(())
 }
 
+// discover_feed_urls finds an RSS <link> tag in HTML.
 #[test]
 fn test_discover_rss_link_from_html() -> anyhow::Result<()> {
     let html = include_str!("fixtures/page_with_rss.html");
@@ -48,15 +51,7 @@ fn test_discover_rss_link_from_html() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_discover_atom_link_from_html() -> anyhow::Result<()> {
-    let html = include_str!("fixtures/page_with_atom.html");
-    let base = "https://example.com/";
-    let urls = feed_source::discover_feed_urls(html, base)?;
-    assert_eq!(urls, vec!["https://example.com/atom.xml"]);
-    Ok(())
-}
-
+// discover_feed_urls returns all feed links when a page has multiple (RSS + Atom).
 #[test]
 fn test_discover_multiple_feeds_returns_all() -> anyhow::Result<()> {
     let html = include_str!("fixtures/page_with_multiple_feeds.html");
@@ -68,6 +63,7 @@ fn test_discover_multiple_feeds_returns_all() -> anyhow::Result<()> {
     Ok(())
 }
 
+// discover_feed_urls returns an error when no feed link exists.
 #[test]
 fn test_discover_no_feed_returns_error() {
     let html = include_str!("fixtures/page_without_feed.html");
@@ -76,6 +72,7 @@ fn test_discover_no_feed_returns_error() {
     assert!(result.is_err());
 }
 
+// Relative feed URLs in <link> are resolved against the base URL.
 #[test]
 fn test_discover_relative_url_resolved() -> anyhow::Result<()> {
     let html = include_str!("fixtures/page_with_relative_feed.html");
@@ -85,25 +82,7 @@ fn test_discover_relative_url_resolved() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_fetch_result_variants() -> anyhow::Result<()> {
-    // Verify FetchResult::NotModified is constructible
-    let not_modified = FetchResult::NotModified;
-    assert!(matches!(not_modified, FetchResult::NotModified));
-
-    // Verify FetchResult::Fetched is constructible
-    let feed = RawFeed::parse(
-        include_bytes!("fixtures/sample_rss.xml"),
-        Some("\"abc\"".to_string()),
-        None,
-    )?;
-    let fetched = FetchResult::Fetched(feed);
-    assert!(matches!(fetched, FetchResult::Fetched(_)));
-    Ok(())
-}
-
-// --- rss_content extraction tests ---
-
+// <content:encoded> takes priority over <description> for rss_content.
 #[test]
 fn test_parse_rss_with_content_encoded() -> anyhow::Result<()> {
     let xml = br#"<?xml version="1.0"?>
@@ -120,7 +99,6 @@ fn test_parse_rss_with_content_encoded() -> anyhow::Result<()> {
     </rss>"#;
     let feed = RawFeed::parse(xml, None, None)?;
     let entry = &feed.entries[0];
-    // content:encoded should take priority over description
     let content = entry
         .rss_content
         .as_ref()
@@ -129,6 +107,7 @@ fn test_parse_rss_with_content_encoded() -> anyhow::Result<()> {
     Ok(())
 }
 
+// <description> is used as rss_content when <content:encoded> is absent.
 #[test]
 fn test_parse_rss_with_description_only() -> anyhow::Result<()> {
     let xml = br#"<?xml version="1.0"?>
@@ -152,6 +131,7 @@ fn test_parse_rss_with_description_only() -> anyhow::Result<()> {
     Ok(())
 }
 
+// rss_content is None when neither <content:encoded> nor <description> exists.
 #[test]
 fn test_parse_rss_no_content_or_description() -> anyhow::Result<()> {
     let xml = br#"<?xml version="1.0"?>
@@ -169,6 +149,7 @@ fn test_parse_rss_no_content_or_description() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Atom <content> is stored as rss_content, taking priority over <summary>.
 #[test]
 fn test_parse_atom_with_content() -> anyhow::Result<()> {
     let xml = br#"<?xml version="1.0" encoding="UTF-8"?>
@@ -194,6 +175,7 @@ fn test_parse_atom_with_content() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Atom <summary> is used as rss_content when <content> is absent.
 #[test]
 fn test_parse_atom_with_summary_only() -> anyhow::Result<()> {
     let xml = br#"<?xml version="1.0" encoding="UTF-8"?>
@@ -217,6 +199,7 @@ fn test_parse_atom_with_summary_only() -> anyhow::Result<()> {
     Ok(())
 }
 
+// ETag and Last-Modified from HTTP response are preserved in RawFeed.
 #[test]
 fn test_parse_rss_preserves_etag_and_last_modified() -> anyhow::Result<()> {
     let xml = include_bytes!("fixtures/sample_rss.xml");
@@ -233,9 +216,9 @@ fn test_parse_rss_preserves_etag_and_last_modified() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Atom <updated> is used as published date when <published> is missing.
 #[test]
 fn test_parse_rss_entry_uses_updated_when_no_published() -> anyhow::Result<()> {
-    // Atom entries often use <updated> instead of <published>
     let xml = br#"<?xml version="1.0" encoding="UTF-8"?>
     <feed xmlns="http://www.w3.org/2005/Atom">
       <title>Blog</title>

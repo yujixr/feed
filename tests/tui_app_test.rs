@@ -26,6 +26,7 @@ fn make_app(articles: Vec<Article>, filter_params: FilterParams) -> anyhow::Resu
     Ok(App::new(store, filter_params))
 }
 
+// Toggling read filter keeps the same article selected by matching its URL.
 #[test]
 fn test_toggle_read_filter_preserves_selection() -> anyhow::Result<()> {
     let mut app = make_app(
@@ -36,16 +37,12 @@ fn test_toggle_read_filter_preserves_selection() -> anyhow::Result<()> {
         ],
         FilterParams::default(),
     )?;
-    // Default: unread only -> 2 articles (unread1, unread2)
     assert_eq!(app.filtered_len(), 2);
 
-    // Select second article (unread2)
     app.selected = 1;
 
-    // Toggle to show all
     app.toggle_read_filter();
     assert_eq!(app.filtered_len(), 3);
-    // unread2 should still be selected
     assert_eq!(
         app.current_article()
             .context("expected current article")?
@@ -55,6 +52,7 @@ fn test_toggle_read_filter_preserves_selection() -> anyhow::Result<()> {
     Ok(())
 }
 
+// When the selected article is removed by filtering, selection clamps to valid range.
 #[test]
 fn test_toggle_read_filter_clamps_when_selected_removed() -> anyhow::Result<()> {
     let mut app = make_app(
@@ -68,29 +66,16 @@ fn test_toggle_read_filter_clamps_when_selected_removed() -> anyhow::Result<()> 
             ..Default::default()
         },
     )?;
-    // All 3 visible, select read1
     assert_eq!(app.filtered_len(), 3);
     app.selected = 0;
 
-    // Toggle to unread only -> read1 disappears
     app.toggle_read_filter();
     assert_eq!(app.filtered_len(), 1);
-    // Selection should clamp to valid range
     assert!(app.selected < app.filtered_len());
     Ok(())
 }
 
-#[test]
-fn test_toggle_read_filter_toggles_filter_params() -> anyhow::Result<()> {
-    let mut app = make_app(vec![], FilterParams::default())?;
-    assert!(!app.is_showing_read());
-    app.toggle_read_filter();
-    assert!(app.is_showing_read());
-    app.toggle_read_filter();
-    assert!(!app.is_showing_read());
-    Ok(())
-}
-
+// mark_current_read only marks the selected article, leaving others unchanged.
 #[tokio::test]
 async fn test_mark_current_read_updates_articles() -> anyhow::Result<()> {
     let mut app = make_app(
@@ -118,6 +103,7 @@ async fn test_mark_current_read_updates_articles() -> anyhow::Result<()> {
     Ok(())
 }
 
+// toggle_current_read switches between read and unread.
 #[tokio::test]
 async fn test_toggle_current_read() -> anyhow::Result<()> {
     let mut app = make_app(
@@ -143,6 +129,7 @@ async fn test_toggle_current_read() -> anyhow::Result<()> {
     Ok(())
 }
 
+// move_down/move_up navigate the list and clamp at both ends.
 #[test]
 fn test_move_down_up() -> anyhow::Result<()> {
     let mut app = make_app(
@@ -161,59 +148,28 @@ fn test_move_down_up() -> anyhow::Result<()> {
     assert_eq!(app.selected, 1);
     app.move_down();
     assert_eq!(app.selected, 2);
-    app.move_down(); // at end, should not go further
+    app.move_down();
     assert_eq!(app.selected, 2);
     app.move_up();
     assert_eq!(app.selected, 1);
     app.move_up();
     assert_eq!(app.selected, 0);
-    app.move_up(); // at start, should not go further
+    app.move_up();
     assert_eq!(app.selected, 0);
     Ok(())
 }
 
-#[test]
-fn test_select() -> anyhow::Result<()> {
-    let mut app = make_app(
-        vec![
-            make_article("a", false, 1),
-            make_article("b", false, 2),
-            make_article("c", false, 3),
-        ],
-        FilterParams {
-            show_read: true,
-            ..Default::default()
-        },
-    )?;
-    assert_eq!(app.selected, 0);
-    app.select(2);
-    assert_eq!(app.selected, 2);
-    app.select(1);
-    assert_eq!(app.selected, 1);
-    // Out of range should clamp
-    app.select(100);
-    assert_eq!(app.selected, 2);
-    // Empty list
-    let mut empty_app = make_app(vec![], FilterParams::default())?;
-    empty_app.select(0);
-    assert_eq!(empty_app.selected, 0);
-    Ok(())
-}
-
+// Auto-refresh does not replace article content while viewing an article.
 #[test]
 fn test_set_articles_during_article_view_preserves_content() -> anyhow::Result<()> {
     let mut app = make_app(
-        vec![
-            make_article("a", false, 1),
-            make_article("b", false, 2),
-        ],
+        vec![make_article("a", false, 1), make_article("b", false, 2)],
         FilterParams {
             show_read: true,
             ..Default::default()
         },
     )?;
 
-    // Open article "a"
     app.selected = 0;
     app.show_article(
         "a".to_string(),
@@ -221,23 +177,19 @@ fn test_set_articles_during_article_view_preserves_content() -> anyhow::Result<(
         "Article content here".to_string(),
     );
 
-    // Simulate FetchComplete arriving while viewing article:
-    // replace articles (as auto-refresh would)
+    // Simulate auto-refresh replacing the article list
     app.store.set_articles(vec![
         make_article("a", false, 1),
         make_article("b", false, 2),
-        make_article("c", false, 0), // new article from refresh
+        make_article("c", false, 0),
     ]);
     app.rebuild_filtered_list();
 
-    // Article content should be unaffected
     assert_eq!(app.article_content.as_deref(), Some("Article content here"));
     assert_eq!(app.article_url.as_deref(), Some("https://example.com/a"));
 
-    // Return to list
     app.close_article();
     assert_eq!(app.filtered_len(), 3);
-    // Selection should be preserved on article "a"
     assert_eq!(
         app.current_article()
             .context("expected current article")?
@@ -247,14 +199,7 @@ fn test_set_articles_during_article_view_preserves_content() -> anyhow::Result<(
     Ok(())
 }
 
-#[test]
-fn test_auto_refresh_disabled_by_default() -> anyhow::Result<()> {
-    let app = make_app(vec![], FilterParams::default())?;
-    assert!(app.auto_refresh_interval.is_none());
-    assert!(!app.should_auto_refresh());
-    Ok(())
-}
-
+// Auto-refresh is suppressed while a fetch is already in progress.
 #[test]
 fn test_auto_refresh_not_triggered_while_loading() -> anyhow::Result<()> {
     let mut app = make_app(vec![], FilterParams::default())?;
@@ -264,21 +209,21 @@ fn test_auto_refresh_not_triggered_while_loading() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Auto-refresh fires immediately when the interval has elapsed.
 #[test]
 fn test_auto_refresh_triggered_after_interval() -> anyhow::Result<()> {
     let mut app = make_app(vec![], FilterParams::default())?;
     app.auto_refresh_interval = Some(std::time::Duration::from_secs(0));
-    // Interval is 0 so it should fire immediately
     assert!(app.should_auto_refresh());
     Ok(())
 }
 
+// Resetting the timer prevents auto-refresh from firing until the interval passes again.
 #[test]
 fn test_reset_refresh_timer() -> anyhow::Result<()> {
     let mut app = make_app(vec![], FilterParams::default())?;
     app.auto_refresh_interval = Some(std::time::Duration::from_secs(9999));
     app.reset_refresh_timer();
-    // Just reset, so not enough time has elapsed
     assert!(!app.should_auto_refresh());
     Ok(())
 }

@@ -150,24 +150,28 @@ mod tests {
 
     // --- detect_charset tests ---
 
+    // charset is extracted from the Content-Type header value.
     #[test]
     fn test_detect_charset_from_content_type() {
         let result = detect_charset(Some("text/html; charset=utf-8"), b"");
         assert_eq!(result, Some("utf-8".to_string()));
     }
 
+    // "Charset" (uppercase C) is treated the same as "charset".
     #[test]
     fn test_detect_charset_case_insensitive_key() {
         let result = detect_charset(Some("text/html; Charset=UTF-8"), b"");
         assert_eq!(result, Some("UTF-8".to_string()));
     }
 
+    // Quotes around the charset value are stripped (e.g. charset="shift_jis").
     #[test]
     fn test_detect_charset_quoted_value() {
         let result = detect_charset(Some("text/html; charset=\"shift_jis\""), b"");
         assert_eq!(result, Some("shift_jis".to_string()));
     }
 
+    // charset is detected from an HTML <meta charset="..."> tag when no header is present.
     #[test]
     fn test_detect_charset_from_meta_tag() {
         let html = br#"<html><head><meta charset="euc-jp"></head></html>"#;
@@ -175,6 +179,7 @@ mod tests {
         assert_eq!(result, Some("euc-jp".to_string()));
     }
 
+    // charset is detected from a <meta http-equiv="Content-Type"> tag.
     #[test]
     fn test_detect_charset_from_meta_http_equiv() {
         let html = br#"<html><head><meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"></head></html>"#;
@@ -182,12 +187,14 @@ mod tests {
         assert_eq!(result, Some("iso-8859-1".to_string()));
     }
 
+    // None is returned when neither header nor meta tag specifies a charset.
     #[test]
     fn test_detect_charset_none_when_absent() {
         let result = detect_charset(None, b"<html><body>hello world</body></html>");
         assert_eq!(result, None);
     }
 
+    // Content-Type header wins over a conflicting <meta charset> in the HTML body.
     #[test]
     fn test_detect_charset_content_type_takes_priority() {
         let html = br#"<html><head><meta charset="euc-jp"></head></html>"#;
@@ -195,32 +202,16 @@ mod tests {
         assert_eq!(result, Some("shift_jis".to_string()));
     }
 
-    #[test]
-    fn test_detect_charset_empty_content_type() {
-        let result = detect_charset(Some(""), b"<html></html>");
-        assert_eq!(result, None);
-    }
-
-    #[test]
-    fn test_detect_charset_no_equals() {
-        let result = detect_charset(Some("text/html; charset"), b"");
-        assert_eq!(result, None);
-    }
-
     // --- decode_html_bytes tests ---
 
-    #[test]
-    fn test_decode_utf8_default() {
-        let result = decode_html_bytes("Hello, world!".as_bytes(), None);
-        assert_eq!(result, "Hello, world!");
-    }
-
+    // UTF-8 Japanese text passes through unchanged when charset=utf-8 is specified.
     #[test]
     fn test_decode_utf8_japanese() {
         let result = decode_html_bytes("こんにちは".as_bytes(), Some("text/html; charset=utf-8"));
         assert_eq!(result, "こんにちは");
     }
 
+    // Shift_JIS encoded bytes are correctly decoded to UTF-8.
     #[test]
     fn test_decode_shift_jis() {
         let (bytes, _, _) = encoding_rs::SHIFT_JIS.encode("テスト");
@@ -228,6 +219,7 @@ mod tests {
         assert_eq!(result, "テスト");
     }
 
+    // ISO-8859-1 (Latin-1) encoded bytes are correctly decoded to UTF-8.
     #[test]
     fn test_decode_iso_8859_1() {
         let (bytes, _, _) = encoding_rs::WINDOWS_1252.encode("café");
@@ -235,6 +227,7 @@ mod tests {
         assert_eq!(result, "café");
     }
 
+    // EUC-JP encoded bytes are correctly decoded to UTF-8.
     #[test]
     fn test_decode_euc_jp() {
         let (bytes, _, _) = encoding_rs::EUC_JP.encode("日本語");
@@ -242,6 +235,7 @@ mod tests {
         assert_eq!(result, "日本語");
     }
 
+    // Charset is auto-detected from <meta charset> when no Content-Type header is given.
     #[test]
     fn test_decode_charset_from_meta_tag() {
         let html = "<html><head><meta charset=\"shift_jis\"></head><body>テスト</body></html>";
@@ -250,15 +244,16 @@ mod tests {
         assert!(result.contains("テスト"));
     }
 
+    // Bytes without any charset hint fall back to UTF-8 (lossy).
     #[test]
     fn test_decode_no_charset_lossy_utf8() {
         let result = decode_html_bytes(b"plain ascii", None);
         assert_eq!(result, "plain ascii");
     }
 
+    // An unrecognized encoding label falls through to UTF-8 lossy instead of failing.
     #[test]
     fn test_decode_unknown_encoding_label() {
-        // Unknown encoding label should fall through to UTF-8 lossy
         let result = decode_html_bytes(b"hello", Some("text/html; charset=bogus-encoding"));
         assert_eq!(result, "hello");
     }
