@@ -5,7 +5,7 @@ A simple RSS/Atom feed reader for the terminal.
 ## Install
 
 ```bash
-cargo install --path .
+cargo install feed-reader
 ```
 
 ## How to use
