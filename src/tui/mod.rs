@@ -2,7 +2,7 @@ pub mod action;
 pub mod app;
 mod handlers;
 pub mod keybindings;
-pub mod ui;
+pub(crate) mod ui;
 
 use std::io;
 use std::time::Duration;
@@ -31,7 +31,7 @@ enum BgMessage {
     },
 }
 
-pub async fn run(store: ArticleStore, filter_params: FilterParams) -> Result<()> {
+pub(crate) async fn run(store: ArticleStore, filter_params: FilterParams) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     stdout.execute(EnterAlternateScreen)?;

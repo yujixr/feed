@@ -8,7 +8,7 @@ use ratatui::{
 
 use super::app::{App, Screen};
 
-pub fn render(frame: &mut Frame, app: &mut App) {
+pub(crate) fn render(frame: &mut Frame, app: &mut App) {
     match app.screen {
         Screen::ArticleList => render_article_list(frame, app),
         Screen::ArticleView => render_article_view(frame, app),

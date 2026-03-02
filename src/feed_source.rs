@@ -23,7 +23,7 @@ pub struct RawEntry {
     pub rss_content: Option<String>,
 }
 
-pub enum FetchResult {
+pub(crate) enum FetchResult {
     Fetched(RawFeed),
     NotModified,
 }
@@ -83,7 +83,11 @@ impl RawFeed {
 }
 
 /// Fetch a feed with conditional GET support.
-pub async fn fetch(client: &Client, url: &str, metadata: &HttpMetadata) -> Result<FetchResult> {
+pub(crate) async fn fetch(
+    client: &Client,
+    url: &str,
+    metadata: &HttpMetadata,
+) -> Result<FetchResult> {
     let mut request = client.get(url).header("User-Agent", "feed-cli/0.1");
 
     if let Some(etag) = &metadata.etag {
@@ -148,7 +152,7 @@ pub fn discover_feed_urls(html: &str, base_url: &str) -> Result<Vec<String>> {
 }
 
 /// Resolve a URL to a feed URL (follows HTML autodiscovery if needed).
-pub async fn resolve_feed_url(client: &Client, url: &str) -> Result<String> {
+pub(crate) async fn resolve_feed_url(client: &Client, url: &str) -> Result<String> {
     let response = client
         .get(url)
         .header("User-Agent", "feed-cli/0.1")

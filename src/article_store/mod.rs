@@ -37,7 +37,7 @@ impl ArticleStore {
         Self::with_client(feeds, config, data_dir, client)
     }
 
-    pub fn with_client(
+    pub(crate) fn with_client(
         feeds: Vec<FeedEntry>,
         config: Config,
         data_dir: PathBuf,
@@ -52,29 +52,24 @@ impl ArticleStore {
         }
     }
 
-    pub fn feeds(&self) -> &[FeedEntry] {
+    pub(crate) fn feeds(&self) -> &[FeedEntry] {
         &self.feeds
     }
 
-    pub fn config(&self) -> &Config {
+    pub(crate) fn config(&self) -> &Config {
         &self.config
     }
 
-    pub fn cache(&self) -> &CacheStore {
+    pub(crate) fn cache(&self) -> &CacheStore {
         &self.cache
     }
 
-    pub fn data_dir(&self) -> &Path {
+    pub(crate) fn data_dir(&self) -> &Path {
         self.cache.data_dir()
     }
 
-    pub fn client(&self) -> &Client {
+    pub(crate) fn client(&self) -> &Client {
         &self.client
-    }
-
-    /// Direct access to all articles.
-    pub fn articles(&self) -> &[Article] {
-        &self.articles
     }
 
     /// Replace internal articles (used in tests and for direct manipulation).
@@ -82,7 +77,7 @@ impl ArticleStore {
         self.articles = articles;
     }
 
-    pub fn take_articles(&mut self) -> Vec<Article> {
+    pub(crate) fn take_articles(&mut self) -> Vec<Article> {
         std::mem::take(&mut self.articles)
     }
 
@@ -115,7 +110,7 @@ impl ArticleStore {
     }
 
     /// Toggle read status of an article by index. Returns the new read state.
-    pub fn toggle_read(&mut self, index: usize) -> bool {
+    pub(crate) fn toggle_read(&mut self, index: usize) -> bool {
         if let Some(a) = self.articles.get_mut(index) {
             a.read = !a.read;
             let new_read = a.read;
@@ -153,7 +148,7 @@ impl ArticleStore {
     }
 
     /// Return cloned articles matching the filter (for CLI display compatibility).
-    pub fn query_articles(&self, params: &FilterParams) -> Vec<Article> {
+    pub(crate) fn query_articles(&self, params: &FilterParams) -> Vec<Article> {
         self.query(params)
             .into_iter()
             .filter_map(|i| self.articles.get(i).cloned())

@@ -22,7 +22,7 @@ impl CacheStore {
         }
     }
 
-    pub fn data_dir(&self) -> &Path {
+    pub(crate) fn data_dir(&self) -> &Path {
         &self.data_dir
     }
 

@@ -13,29 +13,29 @@ pub enum Screen {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct LayoutAreas {
-    pub main_area: Rect,
-    pub status_bar: Rect,
+pub(crate) struct LayoutAreas {
+    pub(crate) main_area: Rect,
+    pub(crate) status_bar: Rect,
 }
 
 pub struct App {
-    pub screen: Screen,
+    pub(crate) screen: Screen,
     pub store: ArticleStore,
-    pub filter_params: FilterParams,
+    pub(crate) filter_params: FilterParams,
     pub filtered_indices: Vec<usize>,
     pub selected: usize,
-    pub scroll_offset: usize,
+    pub(crate) scroll_offset: usize,
     pub article_content: Option<String>,
-    pub article_title: Option<String>,
+    pub(crate) article_title: Option<String>,
     pub article_url: Option<String>,
     pub loading: bool,
-    pub should_quit: bool,
-    pub status_message: Option<String>,
-    pub layout_areas: LayoutAreas,
-    pub list_state: ListState,
-    pub last_refresh: Instant,
+    pub(crate) should_quit: bool,
+    pub(crate) status_message: Option<String>,
+    pub(crate) layout_areas: LayoutAreas,
+    pub(crate) list_state: ListState,
+    pub(crate) last_refresh: Instant,
     pub auto_refresh_interval: Option<Duration>,
-    pub content_cache: HashMap<String, String>,
+    pub(crate) content_cache: HashMap<String, String>,
 }
 
 impl App {
@@ -89,7 +89,7 @@ impl App {
         }
     }
 
-    pub fn select(&mut self, index: usize) {
+    pub(crate) fn select(&mut self, index: usize) {
         if self.filtered_indices.is_empty() {
             return;
         }
@@ -105,30 +105,30 @@ impl App {
         3 + content_lines
     }
 
-    pub fn clamp_scroll(&mut self, visible_height: usize) {
+    fn clamp_scroll(&mut self, visible_height: usize) {
         let max = self.article_line_count().saturating_sub(visible_height);
         self.scroll_offset = self.scroll_offset.min(max);
     }
 
-    pub fn scroll_down(&mut self, visible_height: usize) {
+    pub(crate) fn scroll_down(&mut self, visible_height: usize) {
         self.scroll_offset = self.scroll_offset.saturating_add(1);
         self.clamp_scroll(visible_height);
     }
 
-    pub fn scroll_up(&mut self) {
+    pub(crate) fn scroll_up(&mut self) {
         self.scroll_offset = self.scroll_offset.saturating_sub(1);
     }
 
-    pub fn scroll_page_down(&mut self, page_height: usize, visible_height: usize) {
+    pub(crate) fn scroll_page_down(&mut self, page_height: usize, visible_height: usize) {
         self.scroll_offset = self.scroll_offset.saturating_add(page_height);
         self.clamp_scroll(visible_height);
     }
 
-    pub fn scroll_page_up(&mut self, page_height: usize) {
+    pub(crate) fn scroll_page_up(&mut self, page_height: usize) {
         self.scroll_offset = self.scroll_offset.saturating_sub(page_height);
     }
 
-    pub fn selected_url(&self) -> Option<&str> {
+    pub(crate) fn selected_url(&self) -> Option<&str> {
         self.current_article().map(|a| a.url.as_str())
     }
 
@@ -141,15 +141,15 @@ impl App {
         self.loading = false;
     }
 
-    pub fn has_prev_article(&self) -> bool {
+    pub(crate) fn has_prev_article(&self) -> bool {
         self.selected > 0
     }
 
-    pub fn has_next_article(&self) -> bool {
+    pub(crate) fn has_next_article(&self) -> bool {
         !self.filtered_indices.is_empty() && self.selected < self.filtered_indices.len() - 1
     }
 
-    pub fn select_prev_article(&mut self) {
+    pub(crate) fn select_prev_article(&mut self) {
         if self.has_prev_article() {
             self.selected -= 1;
             self.scroll_offset = 0;
@@ -157,7 +157,7 @@ impl App {
         }
     }
 
-    pub fn select_next_article(&mut self) {
+    pub(crate) fn select_next_article(&mut self) {
         if self.has_next_article() {
             self.selected += 1;
             self.scroll_offset = 0;
@@ -192,7 +192,7 @@ impl App {
             .min(self.filtered_indices.len().saturating_sub(1));
     }
 
-    pub fn is_showing_read(&self) -> bool {
+    pub(crate) fn is_showing_read(&self) -> bool {
         self.filter_params.show_read
     }
 
@@ -242,11 +242,11 @@ impl App {
         self.status_message = None;
     }
 
-    pub fn get_cached_content(&self, url: &str) -> Option<&String> {
+    pub(crate) fn get_cached_content(&self, url: &str) -> Option<&String> {
         self.content_cache.get(url)
     }
 
-    pub fn cache_content(&mut self, url: String, content: String) {
+    pub(crate) fn cache_content(&mut self, url: String, content: String) {
         self.content_cache.insert(url, content);
     }
 }
