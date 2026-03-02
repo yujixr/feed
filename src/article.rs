@@ -19,7 +19,7 @@ pub struct Article {
 
 /// Extract readable HTML from raw HTML using Readability. Returns (title, content_html).
 /// Falls back to the original HTML when Readability cannot parse the input.
-pub(crate) fn parse_readable_html(html: &str) -> (String, String) {
+pub fn parse_readable_html(html: &str) -> (String, String) {
     match readability::Readability::new(html, None) {
         Ok(mut r) => match r.parse() {
             Some(article) => (
