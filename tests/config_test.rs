@@ -162,7 +162,7 @@ fn test_cache_config_defaults() {
 #[test]
 fn test_cache_config_with_path() -> anyhow::Result<()> {
     let yaml = "feeds: []\ncache:\n  path: /tmp/my_feed_cache\n";
-    let config: Config = serde_yml::from_str(yaml)?;
+    let config: Config = serde_norway::from_str(yaml)?;
     assert_eq!(config.cache.path.as_deref(), Some("/tmp/my_feed_cache"));
     Ok(())
 }
@@ -183,7 +183,7 @@ fn test_cache_config_path_not_serialized_when_none() -> anyhow::Result<()> {
 
 #[test]
 fn test_content_config_defaults() -> anyhow::Result<()> {
-    let config: Config = serde_yml::from_str("feeds: []")?;
+    let config: Config = serde_norway::from_str("feeds: []")?;
     assert_eq!(config.content.extractor, ExtractorMethod::Readability);
     Ok(())
 }
@@ -191,14 +191,14 @@ fn test_content_config_defaults() -> anyhow::Result<()> {
 #[test]
 fn test_content_config_rss() -> anyhow::Result<()> {
     let yaml = "feeds: []\ncontent:\n  extractor: rss_content\n";
-    let config: Config = serde_yml::from_str(yaml)?;
+    let config: Config = serde_norway::from_str(yaml)?;
     assert_eq!(config.content.extractor, ExtractorMethod::RssContent);
     Ok(())
 }
 
 #[test]
 fn test_auto_mark_read_default_true() -> anyhow::Result<()> {
-    let config: Config = serde_yml::from_str("feeds: []")?;
+    let config: Config = serde_norway::from_str("feeds: []")?;
     assert!(config.content.auto_mark_read);
     Ok(())
 }
@@ -206,7 +206,7 @@ fn test_auto_mark_read_default_true() -> anyhow::Result<()> {
 #[test]
 fn test_auto_mark_read_explicit_false() -> anyhow::Result<()> {
     let yaml = "feeds: []\ncontent:\n  auto_mark_read: false\n";
-    let config: Config = serde_yml::from_str(yaml)?;
+    let config: Config = serde_norway::from_str(yaml)?;
     assert!(!config.content.auto_mark_read);
     Ok(())
 }
@@ -233,7 +233,7 @@ fn test_auto_mark_read_roundtrip() -> anyhow::Result<()> {
 
 #[test]
 fn test_tui_config_default_disabled() -> anyhow::Result<()> {
-    let config: Config = serde_yml::from_str("feeds: []")?;
+    let config: Config = serde_norway::from_str("feeds: []")?;
     assert_eq!(config.tui.auto_refresh_interval, 0);
     Ok(())
 }
@@ -241,7 +241,7 @@ fn test_tui_config_default_disabled() -> anyhow::Result<()> {
 #[test]
 fn test_tui_config_auto_refresh_interval() -> anyhow::Result<()> {
     let yaml = "feeds: []\ntui:\n  auto_refresh_interval: 300\n";
-    let config: Config = serde_yml::from_str(yaml)?;
+    let config: Config = serde_norway::from_str(yaml)?;
     assert_eq!(config.tui.auto_refresh_interval, 300);
     Ok(())
 }

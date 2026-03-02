@@ -97,7 +97,7 @@ impl Config {
         }
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config: {}", path.display()))?;
-        let config: Config = serde_yml::from_str(&content)
+        let config: Config = serde_norway::from_str(&content)
             .with_context(|| format!("Failed to parse config: {}", path.display()))?;
         Ok(config)
     }
@@ -108,7 +108,7 @@ impl Config {
                 format!("Failed to create config directory: {}", parent.display())
             })?;
         }
-        let content = serde_yml::to_string(self).context("Failed to serialize config")?;
+        let content = serde_norway::to_string(self).context("Failed to serialize config")?;
         fs::write(path, content)
             .with_context(|| format!("Failed to write config: {}", path.display()))?;
         Ok(())
