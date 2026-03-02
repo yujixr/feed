@@ -87,8 +87,8 @@ pub async fn cmd_fetch_article(url: &str) -> Result<()> {
     let width = terminal_size::terminal_size()
         .map(|(terminal_size::Width(w), _)| w as usize)
         .unwrap_or(80);
-    let (title, text) =
-        crate::article::fetch_and_extract(&client, url, width.saturating_sub(2)).await?;
+    let (title, html) = crate::article::extract_readable_html(&client, url).await?;
+    let text = crate::article::html_to_text(&html, width.saturating_sub(2));
     if !title.is_empty() {
         println!("\n {}", title);
     }

@@ -28,13 +28,11 @@ pub(super) fn open_current_article(
         app.show_article(title, url, cached);
     } else {
         // Show RSS content as immediate preview for Readability mode
-        let rss_preview = rss_content
-            .as_ref()
-            .filter(|c| !c.is_empty())
+        let rss_preview = crate::article::extract_rss_html(rss_content.as_deref())
             .filter(|_| method == ExtractorMethod::Readability)
-            .map(|content| {
+            .map(|html| {
                 let content_width = terminal_width.saturating_sub(4);
-                crate::article::html_to_text(content, content_width)
+                crate::article::html_to_text(&html, content_width)
             });
 
         if let Some(preview) = rss_preview {
@@ -66,15 +64,10 @@ pub(super) fn spawn_content_fetch(
 ) {
     let client = app.store.client().clone();
     tokio::spawn(async move {
-        let content = crate::article::extract_content(
-            &client,
-            &url,
-            &method,
-            width.saturating_sub(4),
-            rss_content.as_deref(),
-        )
-        .await
-        .unwrap_or_else(|e| format!("Error: {}", e));
+        let content = crate::article::extract_html(&client, &url, &method, rss_content.as_deref())
+            .await
+            .map(|html| crate::article::html_to_text(&html, width.saturating_sub(4)))
+            .unwrap_or_else(|e| format!("Error: {}", e));
 
         let _ = tx.send(BgMessage::ArticleContent {
             url,

@@ -1,4 +1,4 @@
-use feed::article::{extract_from_html, html_to_text};
+use feed::article::{html_to_text, parse_readable_html};
 use feed::config::ExtractorMethod;
 
 // Readability extracts main content, skipping nav/footer.
@@ -18,7 +18,8 @@ fn test_extract_text_from_html_basic() {
     </body>
     </html>
     "#;
-    let (_title, text) = extract_from_html(html, 80);
+    let (_title, content_html) = parse_readable_html(html);
+    let text = html_to_text(&content_html, 80);
     assert!(text.contains("main content"));
     assert!(!text.is_empty());
 }
@@ -37,7 +38,7 @@ fn test_extract_text_from_html_returns_title() {
     </body>
     </html>
     "#;
-    let (title, _text) = extract_from_html(html, 80);
+    let (title, _content_html) = parse_readable_html(html);
     assert!(!title.is_empty());
 }
 
@@ -45,14 +46,16 @@ fn test_extract_text_from_html_returns_title() {
 #[test]
 fn test_extract_from_html_minimal_html() {
     let html = "<p>short</p>";
-    let (_title, text) = extract_from_html(html, 80);
+    let (_title, content_html) = parse_readable_html(html);
+    let text = html_to_text(&content_html, 80);
     assert!(text.contains("short"));
 }
 
 // Empty input does not panic and returns empty output.
 #[test]
 fn test_extract_from_html_empty() {
-    let (title, text) = extract_from_html("", 80);
+    let (title, content_html) = parse_readable_html("");
+    let text = html_to_text(&content_html, 80);
     assert!(title.is_empty());
     assert!(text.trim().is_empty());
 }
@@ -60,7 +63,8 @@ fn test_extract_from_html_empty() {
 // Plain text input (no HTML tags) is handled via fallback.
 #[test]
 fn test_extract_from_html_plain_text_input() {
-    let (title, text) = extract_from_html("just plain text", 80);
+    let (title, content_html) = parse_readable_html("just plain text");
+    let text = html_to_text(&content_html, 80);
     assert!(title.is_empty() || text.contains("plain text"));
 }
 
@@ -91,19 +95,18 @@ fn test_html_to_text_respects_width() {
     }
 }
 
-// extract_content with RssContent mode converts HTML from RSS body without network access.
+// extract_html with RssContent mode returns HTML from RSS body without network access.
 #[tokio::test]
-async fn test_extract_content_rss_content_with_html() {
+async fn test_extract_html_rss_content_with_html() {
     let client = reqwest::Client::new();
-    let result = feed::article::extract_content(
+    let html = feed::article::extract_html(
         &client,
         "https://example.invalid/nonexistent",
         &ExtractorMethod::RssContent,
-        80,
         Some("<p>RSS article body</p>"),
     )
-    .await;
-    assert!(result.is_ok());
-    let text = result.unwrap();
+    .await
+    .unwrap();
+    let text = feed::article::html_to_text(&html, 80);
     assert!(text.contains("RSS article body"));
 }

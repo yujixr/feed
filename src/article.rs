@@ -17,42 +17,28 @@ pub struct Article {
     pub rss_content: Option<String>,
 }
 
-// === Article content extraction (free functions) ===
-
-/// Fetch article using specified extraction method, returning just the text content.
-pub async fn extract_content(
-    client: &Client,
-    article_url: &str,
-    method: &ExtractorMethod,
-    width: usize,
-    rss_content: Option<&str>,
-) -> Result<String> {
-    match method {
-        ExtractorMethod::Readability => match fetch_and_extract(client, article_url, width).await {
-            Ok((_title, text)) => Ok(text),
-            Err(e) => match rss_content.filter(|c| !c.is_empty()) {
-                Some(content) => Ok(html_to_text(content, width)),
-                None => Err(e),
-            },
+/// Extract readable HTML from raw HTML using Readability. Returns (title, content_html).
+/// Falls back to the original HTML when Readability cannot parse the input.
+pub(crate) fn parse_readable_html(html: &str) -> (String, String) {
+    match readability::Readability::new(html, None) {
+        Ok(mut r) => match r.parse() {
+            Some(article) => (
+                article.title.unwrap_or_default(),
+                article.content.unwrap_or_default(),
+            ),
+            None => (String::new(), html.to_string()),
         },
-        ExtractorMethod::RssContent => {
-            if let Some(html) = rss_content {
-                if !html.is_empty() {
-                    return Ok(html_to_text(html, width));
-                }
-            }
-            let (_title, text) = fetch_and_extract(client, article_url, width).await?;
-            Ok(text)
-        }
+        Err(_) => (String::new(), html.to_string()),
     }
 }
 
-/// Fetch a URL and extract the article content. Returns (title, text).
-pub async fn fetch_and_extract(
-    client: &Client,
-    url: &str,
-    width: usize,
-) -> Result<(String, String)> {
+/// Return RSS content HTML as-is if non-empty.
+pub(crate) fn extract_rss_html(rss_content: Option<&str>) -> Option<String> {
+    rss_content.filter(|c| !c.is_empty()).map(|c| c.to_string())
+}
+
+/// Fetch a URL and extract readable HTML content. Returns (title, content_html).
+pub(crate) async fn extract_readable_html(client: &Client, url: &str) -> Result<(String, String)> {
     let response = client
         .get(url)
         .header("User-Agent", "feed-cli/0.1")
@@ -73,32 +59,40 @@ pub async fn fetch_and_extract(
 
     let html = decode_html_bytes(&bytes, content_type.as_deref());
 
-    Ok(extract_from_html(&html, width))
+    Ok(parse_readable_html(&html))
 }
 
-/// Extract readable text from raw HTML string. Returns (title, text).
-pub fn extract_from_html(html: &str, width: usize) -> (String, String) {
-    match readability::Readability::new(html, None) {
-        Ok(mut r) => match r.parse() {
-            Some(article) => {
-                let content = article.content.unwrap_or_default();
-                let text = html2text::from_read(content.as_bytes(), width).unwrap_or_default();
-                (article.title.unwrap_or_default(), text)
-            }
-            None => (String::new(), html_to_text(html, width)),
-        },
-        Err(_) => (String::new(), html_to_text(html, width)),
-    }
-}
-
-/// Render HTML (or plain text) to wrapped text without Readability extraction.
+/// Render HTML (or plain text) to wrapped text.
 pub fn html_to_text(html: &str, width: usize) -> String {
     html2text::from_read(html.as_bytes(), width).unwrap_or_default()
 }
 
+/// Fetch article using specified extraction method, returning HTML.
+pub async fn extract_html(
+    client: &Client,
+    article_url: &str,
+    method: &ExtractorMethod,
+    rss_content: Option<&str>,
+) -> Result<String> {
+    match method {
+        ExtractorMethod::Readability => match extract_readable_html(client, article_url).await {
+            Ok((_title, html)) => Ok(html),
+            Err(e) => extract_rss_html(rss_content).ok_or(e),
+        },
+        ExtractorMethod::RssContent => {
+            if let Some(html) = extract_rss_html(rss_content) {
+                Ok(html)
+            } else {
+                let (_title, html) = extract_readable_html(client, article_url).await?;
+                Ok(html)
+            }
+        }
+    }
+}
+
 /// Decode raw bytes to a UTF-8 string, detecting encoding from Content-Type header
 /// and HTML meta tags. Falls back to UTF-8 (lossy).
-pub(crate) fn decode_html_bytes(bytes: &[u8], content_type: Option<&str>) -> String {
+fn decode_html_bytes(bytes: &[u8], content_type: Option<&str>) -> String {
     let charset = detect_charset(content_type, bytes);
 
     if let Some(charset) = charset {
