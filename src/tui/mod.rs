@@ -91,7 +91,6 @@ async fn event_loop(
     tx: mpsc::UnboundedSender<BgMessage>,
     mut rx: mpsc::UnboundedReceiver<BgMessage>,
 ) -> Result<()> {
-    let mut pending_articles: Option<Vec<crate::article::Article>> = None;
     let mut last_click: Option<(std::time::Instant, usize)> = None;
 
     loop {
@@ -100,7 +99,7 @@ async fn event_loop(
         let has_event = event::poll(Duration::from_millis(50))?;
 
         // Check background messages
-        handlers::poll_bg_messages(app, &mut rx, &mut pending_articles);
+        handlers::poll_bg_messages(app, &mut rx);
 
         // Auto-refresh check
         if app.should_auto_refresh() {
@@ -120,7 +119,7 @@ async fn event_loop(
             let size = terminal.size()?;
             let width = size.width as usize;
             let height = size.height as usize;
-            if handlers::handle_key_event(app, key, width, height, &mut pending_articles, &tx) {
+            if handlers::handle_key_event(app, key, width, height, &tx) {
                 break;
             }
         }
@@ -134,7 +133,6 @@ async fn event_loop(
                 mouse,
                 width,
                 height,
-                &mut pending_articles,
                 &mut last_click,
                 &tx,
             );

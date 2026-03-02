@@ -90,7 +90,6 @@ pub(super) fn handle_key_event(
     key: &crossterm::event::KeyEvent,
     terminal_width: usize,
     terminal_height: usize,
-    pending_articles: &mut Option<Vec<crate::article::Article>>,
     tx: &mpsc::UnboundedSender<BgMessage>,
 ) -> bool {
     if key.kind != KeyEventKind::Press {
@@ -116,7 +115,7 @@ pub(super) fn handle_key_event(
             open_current_article(app, terminal_width, tx);
         }
         Action::BackToList => {
-            return_to_list(app, pending_articles);
+            app.close_article();
         }
         Action::Refresh => {
             app.loading = true;
@@ -177,7 +176,6 @@ pub(super) fn handle_mouse_event(
     mouse: &crossterm::event::MouseEvent,
     terminal_width: usize,
     terminal_height: usize,
-    pending_articles: &mut Option<Vec<crate::article::Article>>,
     last_click: &mut Option<(std::time::Instant, usize)>,
     tx: &mpsc::UnboundedSender<BgMessage>,
 ) {
@@ -233,7 +231,7 @@ pub(super) fn handle_mouse_event(
         }
         MouseEventKind::Down(MouseButton::Right) => {
             if app.screen == Screen::ArticleView {
-                return_to_list(app, pending_articles);
+                app.close_article();
             }
         }
         _ => {}
@@ -243,20 +241,14 @@ pub(super) fn handle_mouse_event(
 pub(super) fn poll_bg_messages(
     app: &mut App,
     rx: &mut mpsc::UnboundedReceiver<BgMessage>,
-    pending_articles: &mut Option<Vec<crate::article::Article>>,
 ) {
     while let Ok(msg) = rx.try_recv() {
         match msg {
             BgMessage::FetchComplete(articles) => {
                 app.reset_refresh_timer();
-                if app.screen == Screen::ArticleView {
-                    // Defer update until user returns to list
-                    *pending_articles = Some(articles);
-                } else {
-                    app.store.set_articles(articles);
-                    app.rebuild_filtered_list();
-                    app.loading = false;
-                }
+                app.store.set_articles(articles);
+                app.rebuild_filtered_list();
+                app.loading = false;
             }
             BgMessage::ArticleContent {
                 url,
@@ -278,10 +270,3 @@ pub(super) fn poll_bg_messages(
     }
 }
 
-pub(super) fn return_to_list(app: &mut App, pending: &mut Option<Vec<crate::article::Article>>) {
-    app.close_article();
-    if let Some(articles) = pending.take() {
-        app.store.set_articles(articles);
-        app.rebuild_filtered_list();
-    }
-}

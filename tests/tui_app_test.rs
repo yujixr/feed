@@ -201,6 +201,53 @@ fn test_select() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_set_articles_during_article_view_preserves_content() -> anyhow::Result<()> {
+    let mut app = make_app(
+        vec![
+            make_article("a", false, 1),
+            make_article("b", false, 2),
+        ],
+        FilterParams {
+            show_read: true,
+            ..Default::default()
+        },
+    )?;
+
+    // Open article "a"
+    app.selected = 0;
+    app.show_article(
+        "a".to_string(),
+        "https://example.com/a".to_string(),
+        "Article content here".to_string(),
+    );
+
+    // Simulate FetchComplete arriving while viewing article:
+    // replace articles (as auto-refresh would)
+    app.store.set_articles(vec![
+        make_article("a", false, 1),
+        make_article("b", false, 2),
+        make_article("c", false, 0), // new article from refresh
+    ]);
+    app.rebuild_filtered_list();
+
+    // Article content should be unaffected
+    assert_eq!(app.article_content.as_deref(), Some("Article content here"));
+    assert_eq!(app.article_url.as_deref(), Some("https://example.com/a"));
+
+    // Return to list
+    app.close_article();
+    assert_eq!(app.filtered_len(), 3);
+    // Selection should be preserved on article "a"
+    assert_eq!(
+        app.current_article()
+            .context("expected current article")?
+            .title,
+        "a"
+    );
+    Ok(())
+}
+
+#[test]
 fn test_auto_refresh_disabled_by_default() -> anyhow::Result<()> {
     let app = make_app(vec![], FilterParams::default())?;
     assert!(app.auto_refresh_interval.is_none());
